@@ -207,13 +207,13 @@ class ExperimentBuilder(object):
         """
         x_support_set, x_target_set, y_support_set, y_target_set, seed = val_sample
         if self.args.start_idx == 0:
-            category_support, category_target = x_support_set[:, :, :, :-16, :, :].clone(), x_target_set[:, :, :, :-16, :, :].clone()
-        x_support_set, x_target_set = x_support_set[:, :, :, -16:, :, :], x_target_set[:, :, :, -16:, :, :]
+            category_support, category_target = x_support_set[:, :, :, :-self.args.image_channels, :, :].clone(), x_target_set[:, :, :, :-self.args.image_channels, :, :].clone()
+        x_support_set, x_target_set = x_support_set[:, :, :, -self.args.image_channels:, :, :], x_target_set[:, :, :, -self.args.image_channels:, :, :]
 
         # Test for robustness
         while self.args.corruption_num > 0:
             # x_target_set is a tensor with shape [8, 5, 64, 16, 1, 1]
-            index = torch.randint(0, 16, (8, 5, 64, 1, 1, 1))
+            index = torch.randint(0, self.args.image_channels, (8, 5, 64, 1, 1, 1))
             x_target_set.scatter_(-3, index, 0)
             self.args.corruption_num = self.args.corruption_num - 1
 
@@ -231,8 +231,8 @@ class ExperimentBuilder(object):
         if self.args.start_idx == 0:
             new_per_task_preds, new_per_task_support_preds = [], []
             for category_support_lst, category_target_lst, per_task_preds_lst, per_task_support_preds_lst in zip(category_support, category_target, per_task_preds, per_task_support_preds):
-                category_support_lst = torch.squeeze(category_support_lst).view(-1, 6).numpy()
-                category_target_lst = torch.squeeze(category_target_lst).view(-1, 6).numpy()
+                category_support_lst = torch.squeeze(category_support_lst).view(-1, self.args.num_of_classes).numpy()
+                category_target_lst = torch.squeeze(category_target_lst).view(-1, self.args.num_of_classes).numpy()
                 new_per_task_preds.append(np.concatenate((category_target_lst, per_task_preds_lst), axis=1))
                 new_per_task_support_preds.append(np.concatenate((category_support_lst, per_task_support_preds_lst), axis=1))
         else:
@@ -307,7 +307,7 @@ class ExperimentBuilder(object):
 
     def collaborative_evaluated_test_set(self, predictor, encoder=None):
         per_epoch_statistics = pd.read_csv(self.args.work_path + self.args.experiment_name +
-                                           '/' + self.args.label_name + '/' + self.args.loss_name +
+                                           '/' + self.args.label_name + '/' + self.args.loss_name + '/' + str(self.args.num_classes_per_set) +
                                            "/logs/summary_statistics.csv")
         val_acc = per_epoch_statistics['val_accuracy_mean'].values
         val_idx = np.array([i for i in range(len(val_acc))])
@@ -330,7 +330,7 @@ class ExperimentBuilder(object):
         fine_tune_time = []
 
         for idx, model_idx in enumerate(top_n_idx):
-            self.state = self.model.load_model(model_save_dir=self.args.work_path + self.args.experiment_name + '/' + self.args.label_name + '/' + self.args.loss_name + '/saved_models/',
+            self.state = self.model.load_model(model_save_dir=self.args.work_path + self.args.experiment_name + '/' + self.args.label_name + '/' + self.args.loss_name + '/' + str(self.args.num_classes_per_set) + '/saved_models/',
                                                model_name="train_model",
                                                model_idx=model_idx + 1)
             with tqdm(total=int(self.args.num_evaluation_tasks / self.args.batch_size)) as pbar_test:
@@ -389,10 +389,10 @@ class ExperimentBuilder(object):
         test_seed = test_rng.randint(1, 999999)
 
         rng = np.random.RandomState(seed=test_seed)
-        dataset_df = pd.read_csv(self.args.work_path + 'datasets/training_2nd_dataset_1.csv')
+        dataset_df = pd.read_csv(self.args.work_path + 'datasets/ICC2018_cleaned.csv')
         idx_lst = dataset_df.columns.to_list()
         dic_num, dic_idx = {}, {}
-        for f in ['date_sequence', 'hour_sequence', 'domain_name', 'isp', 'node_name', 'city']:
+        for f in ['node_name', 'NbClients','DASHPolicy','StallLabel']:
             le = LabelEncoder()
             le.fit(dataset_df[f])
             dic1 = {x: le.transform([x])[0] for x in dataset_df[f].unique()}
@@ -402,7 +402,7 @@ class ExperimentBuilder(object):
         del dataset_df
 
         per_epoch_statistics = pd.read_csv(self.args.work_path + self.args.experiment_name + '/' + self.args.label_name +
-                                           '/' + self.args.loss_name + "/logs/summary_statistics.csv")
+                                           '/' + self.args.loss_name + '/' + str(self.args.num_classes_per_set) + "/logs/summary_statistics.csv")
         val_acc = per_epoch_statistics['val_accuracy_mean'].values
         val_idx = np.array([i for i in range(len(val_acc))])
 
@@ -421,9 +421,10 @@ class ExperimentBuilder(object):
         per_model_per_batch_support_preds = [[] for i in range(self.args.top_n_models)]
         per_model_per_batch_support_targets = [[] for i in range(self.args.top_n_models)]
         test_losses = [dict() for i in range(self.args.top_n_models)]
+        fine_tune_time = []
 
         for idx, model_idx in enumerate(top_n_idx):
-            self.state = self.model.load_model(model_save_dir=self.args.work_path + self.args.experiment_name + '/' + self.args.label_name + '/' + self.args.loss_name + '/saved_models/',
+            self.state = self.model.load_model(model_save_dir=self.args.work_path + self.args.experiment_name + '/' + self.args.label_name + '/' + self.args.loss_name + '/' + str(self.args.num_classes_per_set) + '/saved_models/',
                                                model_name="train_model",
                                                model_idx=model_idx + 1)
             with tqdm(total=int(self.args.num_evaluation_tasks / self.args.batch_size)) as pbar_test:
@@ -433,23 +434,25 @@ class ExperimentBuilder(object):
                     # print(test_sample[4])
                     per_model_per_batch_targets[idx].extend(np.array(test_sample[3]))
                     per_model_per_batch_support_targets[idx].extend(np.array(test_sample[2]))
-                    per_model_per_batch_preds, per_model_per_batch_support_preds = self.col_test_evaluation_iteration(val_sample=test_sample,
+                    per_model_per_batch_preds, per_model_per_batch_support_preds, tmp_time = self.col_test_evaluation_iteration(val_sample=test_sample,
                                                                                    sample_idx=sample_idx,
                                                                                    model_idx=idx,
                                                                                    per_model_per_batch_preds=per_model_per_batch_preds,
                                                                                    per_model_per_batch_support_preds=per_model_per_batch_support_preds,
                                                                                    pbar_test=pbar_test, encoder=encoder)
                     # pbar_test.update(1)
+                    fine_tune_time.append(tmp_time)
+        print(f"Fine-tuning time is {np.mean(fine_tune_time):.2f} s")
         per_batch_preds = np.mean(per_model_per_batch_preds, axis=0)
         per_batch_support_preds = np.mean(per_model_per_batch_support_preds, axis=0)
         if self.args.dataset_name == 'sneset_dataset':
             num_output_classes = self.args.num_output_classes if self.args.pretrain_model == 'meta_learning' else 1000
             per_batch_preds = per_batch_preds.reshape(self.args.num_evaluation_tasks * self.args.num_classes_per_set,
                                                       self.args.num_target_samples,
-                                                      num_output_classes+6)
+                                                      num_output_classes+self.args.num_of_classes)
             per_batch_support_preds = per_batch_support_preds.reshape(self.args.num_evaluation_tasks * self.args.num_classes_per_set,
                                                                       self.args.num_target_samples,
-                                                                      num_output_classes+6)
+                                                                      num_output_classes+self.args.num_of_classes)
             per_batch_targets = np.array(per_model_per_batch_targets[0]).reshape(self.args.num_evaluation_tasks * self.args.num_classes_per_set,
                                                                                  self.args.num_target_samples, 1)
             per_batch_support_targets = np.array(per_model_per_batch_support_targets[0]).reshape(self.args.num_evaluation_tasks * self.args.num_classes_per_set,

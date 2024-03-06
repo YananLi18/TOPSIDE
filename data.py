@@ -182,10 +182,14 @@ class FewShotLearningRegressionParallel(Dataset):
         """
         rng = np.random.RandomState(seed=self.seed['val'])
 
-        dataset_df = pd.read_csv(self.args.work_path + 'datasets/training_2nd_dataset_1.csv')
+        # dataset_df = pd.read_csv(self.args.work_path + 'datasets/training_2nd_dataset_1.csv')
+        dataset_df = pd.read_csv(self.args.work_path + 'datasets/ICC2018_cleaned.csv')
+        
         if self.args.label_name != "buffer_rate":  # 只能是startup_delay 和 buffer_rate；默认都放到最后一列
             # dataset_df["buffer_rate"] = 4 * dataset_df["tcp_conntime"] + dataset_df["avg_fbt_time"]
             dataset_df['buffer_rate'], dataset_df[self.args.label_name] = dataset_df[self.args.label_name], dataset_df['buffer_rate']
+            if self.args.label_name == "AvgQualityIndex": 
+                dataset_df["buffer_rate"] = dataset_df["buffer_rate"] * 100
         else:
             dataset_df["buffer_rate"] = dataset_df["buffer_rate"] * 100
 
@@ -212,7 +216,9 @@ class FewShotLearningRegressionParallel(Dataset):
         x_test_df = dataset_df[dataset_df['node_name'].isin(x_test_classes)].copy()
 
         if self.args.start_idx == 0:
-            for f in ['date_sequence', 'hour_sequence', 'domain_name', 'isp', 'node_name', 'city']:
+            # 原来的数据集f循环的列表是['date_sequence', 'hour_sequence', 'domain_name', 'isp', 'node_name', 'city']
+            # 更换为icc的是
+            for f in ['node_name', 'NbClients','DASHPolicy','StallLabel', ]:
                 le = LabelEncoder()
                 le.fit(dataset_df[f])
                 dic1 = {x: le.transform([x])[0] for x in dataset_df[f].unique()}
@@ -264,7 +270,8 @@ class FewShotLearningRegressionParallel(Dataset):
             for sample in choose_samples_list:
                 choose_samples = self.datasets[dataset_name][class_entry][sample]  # [h, w, c]
 
-                feature_idx = 16 + 6 - self.args.start_idx
+                # feature_idx = 16 + 6 - self.args.start_idx
+                feature_idx = self.args.image_channels + self.args.num_of_classes - self.args.start_idx
 
                 choose_samples_x = choose_samples[:, :, :feature_idx].astype('float32')
                 choose_samples_y = choose_samples[:, :, feature_idx:]

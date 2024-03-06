@@ -858,10 +858,14 @@ class CausalEncoder(nn.Module):
         self.input_shape = list(im_shape)
         self.num_stages = args.num_stages
 
-        self.o1_dims = 7
-        self.o2_dims = 4
-        self.o3_dims = 2
-        self.o4_dims = 3
+        # self.o1_dims = 7
+        # self.o2_dims = 4
+        # self.o3_dims = 2
+        # self.o4_dims = 3
+        self.o1_dims = 4
+        self.o2_dims = 20
+        self.o3_dims = 9
+        self.o4_dims = 12
 
         self.pow_dim = 5
         self.u1_dims = 2 ** self.pow_dim

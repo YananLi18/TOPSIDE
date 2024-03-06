@@ -104,10 +104,10 @@ def nn_pipeline(args, x_support, y_support, x_target, y_target, dic_num, dic_idx
 
     if args.bnn_standard_scaler:
         # Split the array
-        unscaled_part_support = x_support[:, :6]  # All columns except the last 16
-        to_scale_part_support = x_support[:, 6:]  # Only the last 16 columns
-        unscaled_part_target = x_target[:, :6]
-        to_scale_part_target = x_target[:, 6:]
+        unscaled_part_support = x_support[:, :args.num_of_classes]  # All columns except the last 16
+        to_scale_part_support = x_support[:, args.num_of_classes:]  # Only the last 16 columns
+        unscaled_part_target = x_target[:, :args.num_of_classes]
+        to_scale_part_target = x_target[:, args.num_of_classes:]
 
         # Initialize the StandardScaler
         scaler = StandardScaler()
@@ -228,21 +228,26 @@ class FullNet(nn.Module):
         https://forums.fast.ai/t/embedding-layer-size-rule/50691
         '''
 
-        self.emb1 = nn.Embedding(dic_num['date_sequence'], int(base_dimension/2))
-        self.emb2 = nn.Embedding(dic_num['hour_sequence'], int(base_dimension/2))
-        self.emb3 = nn.Embedding(dic_num['domain_name'], base_dimension)
-        self.emb4 = nn.Embedding(dic_num['isp'], base_dimension)
-        self.emb5 = nn.Embedding(dic_num['node_name'], base_dimension)
-        self.emb6 = nn.Embedding(dic_num['city'], base_dimension)
+        # self.emb1 = nn.Embedding(dic_num['date_sequence'], int(base_dimension/2))
+        # self.emb2 = nn.Embedding(dic_num['hour_sequence'], int(base_dimension/2))
+        # self.emb3 = nn.Embedding(dic_num['domain_name'], base_dimension)
+        # self.emb4 = nn.Embedding(dic_num['isp'], base_dimension)
+        # self.emb5 = nn.Embedding(dic_num['node_name'], base_dimension)
+        # self.emb6 = nn.Embedding(dic_num['city'], base_dimension)
+        self.emb1 = nn.Embedding(dic_num['node_name'], base_dimension)
+        self.emb2 = nn.Embedding(dic_num['NbClients'], base_dimension)
+        self.emb3 = nn.Embedding(dic_num['DASHPolicy'], base_dimension)
+        self.emb4 = nn.Embedding(dic_num['StallLabel'], base_dimension)
+        # self.emb5 = nn.Embedding(dic_num['ClientResolution'], base_dimension)
 
-        self.first_linear = nn.Linear(dimension-6, base_dimension)
+        self.first_linear = nn.Linear(dimension-4, base_dimension)
         self.ratio = 0.15
 
         self.linear_relu_stack = nn.Sequential(
-            nn.Linear(base_dimension*10, base_dimension*5),
+            nn.Linear(base_dimension*8, base_dimension*4),
             nn.ReLU(),
             nn.Dropout(self.ratio),
-            nn.Linear(base_dimension*5, base_dimension*2),
+            nn.Linear(base_dimension*4, base_dimension*2),
             nn.ReLU(),
             nn.Dropout(self.ratio),
             nn.Linear(base_dimension*2, base_dimension),
@@ -251,9 +256,9 @@ class FullNet(nn.Module):
             nn.Linear(base_dimension, 1),
             # nn.ReLU()
         )
-        self.dic_idx = [dic_idx[c] for c in ['date_sequence', 'hour_sequence', 'domain_name', 'isp', 'node_name', 'city']]
+        self.dic_idx = [dic_idx[c] for c in ['node_name', 'NbClients','DASHPolicy','StallLabel', ]]
         self.device = device
-        self.bnn_collaborative = bnn_collaborative
+        self.bnn_collaborative = bnn_collaborative 
 
     def forward(self, x):
         len1 = x.shape[1]
@@ -265,14 +270,14 @@ class FullNet(nn.Module):
         emb2 = self.emb2(input_emb[:, 1].int())
         emb3 = self.emb3(input_emb[:, 2].int())
         emb4 = self.emb4(input_emb[:, 3].int())
-        emb5 = self.emb5(input_emb[:, 4].int())
-        emb6 = self.emb5(input_emb[:, 5].int())
-        emb12 = torch.cat([emb1, emb2], 1)
+        # emb5 = self.emb5(input_emb[:, 4].int())
+        # emb6 = self.emb5(input_emb[:, 5].int())
+        # emb12 = torch.cat([emb1, emb2], 1)
 
         iv = self.first_linear(input_value.float()) if not self.bnn_collaborative else input_value.float()
 
-        input_revise = torch.cat([emb12*iv, emb3*iv, emb4*iv, emb5*iv, emb6*iv,
-                                  emb12, emb3, emb4, emb5, emb6], 1)
+        input_revise = torch.cat([emb1*iv, emb2*iv, emb3*iv, emb4*iv,
+                                  emb1, emb2, emb3, emb4], 1)
 
         y = self.linear_relu_stack(input_revise)
         return y
